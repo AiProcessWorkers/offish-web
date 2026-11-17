@@ -2,28 +2,61 @@
 <html lang="ko">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <meta name="viewport" content="width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Offish</title>
+    <!-- 앱이 아니라 웹 페이지다: 홈 화면 앱(PWA)과 그 안내는 두지 않는다 (PRD §9.2·§13 A12). 홈 화면 앱은 브라우저와 저장소가 따로라
+         캐릭터 기록을 잃는다. manifest는 아이콘·색만 쓰고 display는 browser -->
+    <link rel="manifest" href="manifest.webmanifest">
+    <meta name="theme-color" content="#08234D">
+    <meta name="apple-mobile-web-app-title" content="Offish">
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+    <link rel="icon" type="image/png" href="icons/icon-192.png">
     <style>
-      /* Offish 웹 템플릿: 브라우저 창 전체를 게임 화면으로 쓴다 (도트 배율은 게임이 화면 크기에 맞춰 정수로 정한다) */
+      /* 브라우저 창 전체를 게임 화면으로 쓴다. 도트 배율·가로/세로 배치는 게임이 화면 크기에 맞춰 정한다 */
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #08234D; }
-      #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #08234D; outline: none; }
+      #unity-canvas { position: fixed; inset: 0; width: 100%; height: 100%; display: block; background: #08234D; outline: none; touch-action: none; }
       #loading { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center;
                  gap: 14px; color: #FFE066; font: bold 20px/1 monospace; letter-spacing: 2px; }
       #bar { width: 220px; height: 10px; border: 2px solid #FFE066; box-sizing: border-box; }
       #fill { width: 0; height: 100%; background: #FFE066; }
-      #rotate { display: none; position: fixed; inset: 0; align-items: center; justify-content: center; text-align: center;
-                background: #08234D; color: #F6F9FF; font: 16px/1.6 sans-serif; padding: 24px; box-sizing: border-box; }
-      @media (orientation: portrait) and (max-width: 900px) { #rotate { display: flex; } }
+      .pixel-box { background: rgba(14, 27, 54, 0.88); border: 2px solid #8FDCFF; box-shadow: 0 0 0 2px #0A1530; color: #F6F9FF; }
+      #fullscreen { display: none; position: fixed; z-index: 10; width: 32px; height: 32px; padding: 0; cursor: pointer; font: 18px/1 sans-serif;
+                    left: calc(env(safe-area-inset-left) + 8px); bottom: calc(env(safe-area-inset-bottom) + 8px); opacity: 0.8; }
     </style>
   </head>
   <body>
     <canvas id="unity-canvas" tabindex="-1"></canvas>
     <div id="loading">OFFISH<div id="bar"><div id="fill"></div></div></div>
-    <div id="rotate">가로 화면 게임이에요.<br>휴대폰을 가로로 돌려 주세요.</div>
+    <button id="fullscreen" class="pixel-box" aria-label="전체 화면" title="전체 화면" data-i18n-title="fullscreen" data-i18n-aria="fullscreen">⛶</button>
+    <!-- 페이지 글자 언어 (한국어·영어·일본어, 게임과 같은 고르기 규칙). 게임에서 언어를 바꾸면 Unity가 offishI18n.set으로 알려 준다 -->
+    <script src="i18n.js"></script>
+    <!-- 모드 2 서버 판정의 화면 열림 신호 (하트비트·닫힘 비콘). Unity가 입장한 뒤 시작한다 -->
+    <script src="presence.js"></script>
     <script src="Build/WebGL.loader.js"></script>
     <script>
       var canvas = document.querySelector("#unity-canvas");
+      var standalone = window.matchMedia("(display-mode: fullscreen)").matches
+        || window.matchMedia("(display-mode: standalone)").matches || window.navigator.standalone === true;
+
+      // 전체 화면 버튼: 가로 화면(창 폭 ≥ 창 높이)에서 Fullscreen API를 지원할 때만 (PC·안드로이드 가로).
+      // 세로에서는 왼쪽 아래 타일 줄과 겹쳐서 숨긴다 (디자인 「휴대폰 화면 구조」 ④ 엄지가 닿는 곳에 셋만). 아이폰 Safari는 지원하지 않아 늘 숨는다
+      var loaded = false;
+      var fsButton = document.querySelector("#fullscreen");
+      var root = document.documentElement;
+      var canFullscreen = !standalone && (document.fullscreenEnabled || document.webkitFullscreenEnabled);
+      function updateFullscreenButton() {
+        var inFullscreen = document.fullscreenElement || document.webkitFullscreenElement;
+        var landscape = window.innerWidth >= window.innerHeight;
+        fsButton.style.display = loaded && canFullscreen && landscape && !inFullscreen ? "block" : "none";
+      }
+      fsButton.onclick = function () {
+        (root.requestFullscreen || root.webkitRequestFullscreen).call(root);
+      };
+      document.addEventListener("fullscreenchange", updateFullscreenButton);
+      document.addEventListener("webkitfullscreenchange", updateFullscreenButton);
+      window.addEventListener("resize", updateFullscreenButton);
+      window.addEventListener("orientationchange", updateFullscreenButton);
+
       createUnityInstance(canvas, {
         arguments: [],
         dataUrl: "Build/WebGL.data.unityweb",
@@ -37,9 +70,13 @@
         document.querySelector("#fill").style.width = (100 * progress) + "%";
       }).then(function () {
         document.querySelector("#loading").style.display = "none";
+        loaded = true;
+        updateFullscreenButton();
         canvas.focus();
       }).catch(function (message) {
-        alert(message);
+        // 원인은 콘솔에만 남기고 화면에는 보는 사람 언어의 안내 한 줄
+        console.error("[Offish] 불러오지 못함:", message);
+        alert(window.offishI18n ? window.offishI18n.t("loadFailed") : message);
       });
     </script>
   </body>

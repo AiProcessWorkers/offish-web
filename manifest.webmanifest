@@ -1,0 +1,15 @@
+{
+  "name": "Offish",
+  "short_name": "Offish",
+  "description": "바닷속을 헤엄치는 직장인 다이버 도트 게임",
+  "start_url": "./",
+  "scope": "./",
+  "display": "browser",
+  "orientation": "any",
+  "background_color": "#08234D",
+  "theme_color": "#08234D",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}
